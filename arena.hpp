@@ -11,10 +11,12 @@ struct Arena {
     ~Arena();
 
     void* pointer();
-    template <typename T>
-        T* alloc();
-    template <typename T>
-        T* copy(T& item);
+    void assert_size(size_t size_);
+
+    template <typename T> T* alloc();
+    template <typename T> T* alloc_many(size_t count);
+    template <typename T> T* copy(T& item);
+    void* alloc_size(size_t size);
     char* strcopy(char* str);
     char* sprintf(const char* fmt, ...);
     void reset();
@@ -49,9 +51,25 @@ T* Arena::alloc() {
     return item;
 }
 
+void* Arena::alloc_size(size_t size_) {
+    if (size + size_ >= capacity) return nullptr;
+    void* ptr = data;
+    size += size_;
+    return ptr;
+}
+
+template <typename T>
+T* Arena::alloc_many(size_t count) {
+    size_t sizeof_t = sizeof(T);
+    size_t realsize = count * sizeof_t;
+    T* arr = alloc_size(realsize);
+    return arr;
+}
+
 template <typename T>
 T* Arena::copy(T& item) {
     T* copy_ = this->alloc<T>();
+    if (copy_ == nullptr) return nullptr;
     memset(copy_, item, sizeof(T));
     return copy_;
 }
@@ -67,14 +85,16 @@ char* Arena::sprintf(const char* fmt, ...) {
     int n = vsnprintf(NULL, 0, fmt, args);
     va_end(args);
 
+    if (size + n >= capacity) return nullptr;
+
     char* str = static_cast<char*>(this->pointer());
 
     va_start(args, fmt);
     int n_ = vsnprintf(str, n, fmt, args);
     assert(n == n_);
+    va_end(args);
 
     size += n_;
-    va_end(args);
 
     return str;
 }
